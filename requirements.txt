@@ -1,5 +1,5 @@
 Flask==2.3.2
-yt-dlp==2024.1.1
+yt-dlp>=2026.1.29
 pymongo==4.6.1
 python-dotenv==1.0.0
 gunicorn==21.2.0
