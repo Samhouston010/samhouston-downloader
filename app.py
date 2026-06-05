@@ -23,6 +23,21 @@ except:
 
 downloads = {}
 
+# خودکار cookies رو از Render Secret File می‌خواند
+COOKIES_PATHS = [
+    '/etc/secrets/cookies.txt',
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cookies.txt'),
+]
+
+def get_server_cookies():
+    for path in COOKIES_PATHS:
+        if os.path.exists(path):
+            return path
+    return None
+
+SERVER_COOKIES = get_server_cookies()
+print(f"Server cookies: {SERVER_COOKIES if SERVER_COOKIES else 'NOT FOUND'}")
+
 HTML = r'''<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -64,13 +79,15 @@ h1{font-size:clamp(1.9rem,5vw,3.2rem);font-weight:700;line-height:1.1;margin-bot
 .lbl{font-size:.75rem;color:var(--tm);margin-bottom:7px;font-weight:500}
 .sel{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--gb);border-radius:10px;padding:10px 13px;color:var(--t);font-family:'Vazirmatn',sans-serif;font-size:.85rem;outline:none;cursor:pointer;transition:border .2s}
 .sel:focus{border-color:var(--a)}
-.sel option{background:#0f172a}
 
 .bmain{width:100%;position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(14,165,233,.22),rgba(99,102,241,.22));border:1px solid rgba(56,189,248,.38);backdrop-filter:blur(10px);border-radius:13px;padding:15px;color:#fff;font-family:'Vazirmatn',sans-serif;font-size:1rem;font-weight:600;cursor:pointer;transition:all .3s}
-.bmain::before{content:'';position:absolute;top:-50%;left:-60%;width:35%;height:200%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.22),transparent);transform:skewX(-20deg);transition:left .55s ease}
-.bmain:hover::before{left:130%}
-.bmain:hover{background:linear-gradient(135deg,rgba(14,165,233,.38),rgba(99,102,241,.38));border-color:rgba(56,189,248,.65);box-shadow:0 0 25px rgba(56,189,248,.28);transform:translateY(-1px)}
-.bmain:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.bmain:hover{background:linear-gradient(135deg,rgba(14,165,233,.38),rgba(99,102,241,.38));box-shadow:0 0 25px rgba(56,189,248,.28);transform:translateY(-1px)}
+.bmain:disabled{opacity:.4;cursor:not-allowed}
+
+.info{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:11px;padding:12px 16px;color:var(--ok);font-size:.85rem;margin-bottom:14px;line-height:1.4}
+
+.cookie-section{background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:11px;padding:14px;margin-bottom:14px}
+.cookie-section label{font-size:.8rem;color:var(--tm);margin-bottom:8px;display:block;font-weight:600}
 
 .pcard{display:none;width:100%;max-width:700px;background:var(--g);border:1px solid var(--gb);backdrop-filter:blur(18px);border-radius:22px;padding:28px;margin-bottom:16px;text-align:center}
 .pbar-bg{background:rgba(255,255,255,.06);border-radius:100px;height:6px;margin:14px 0;overflow:hidden}
@@ -83,28 +100,24 @@ h1{font-size:clamp(1.9rem,5vw,3.2rem);font-weight:700;line-height:1.1;margin-bot
 .mhead{display:flex;gap:13px;align-items:center;margin-bottom:20px}
 .mthumb{width:110px;height:110px;object-fit:cover;border-radius:12px;flex-shrink:0;border:1px solid var(--gb);background:rgba(99,102,241,.1)}
 .minfo{flex:1}
-.mtitle{font-size:1rem;font-weight:600;margin-bottom:5px;color:var(--t)}
+.mtitle{font-size:1rem;font-weight:600;margin-bottom:5px}
 .martist{font-size:.85rem;color:var(--tm);margin-bottom:8px}
-.mduration{font-size:.75rem;color:#475569}
 
-.dlb{display:flex;align-items:center;justify-content:space-between;width:100%;position:relative;overflow:hidden;background:rgba(255,255,255,.04);border:1px solid var(--gb);border-radius:11px;padding:12px 15px;color:var(--t);text-decoration:none;font-family:'Vazirmatn',sans-serif;font-size:.86rem;cursor:pointer;transition:all .25s;margin-bottom:7px}
-.dlb:hover{background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.4);box-shadow:0 0 18px rgba(56,189,248,.1);transform:translateX(-2px)}
+.dlb{display:flex;align-items:center;justify-content:space-between;width:100%;background:rgba(255,255,255,.04);border:1px solid var(--gb);border-radius:11px;padding:12px 15px;color:var(--t);text-decoration:none;font-family:'Vazirmatn',sans-serif;font-size:.86rem;cursor:pointer;transition:all .25s;margin-bottom:7px}
+.dlb:hover{background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.4)}
 .dll{display:flex;align-items:center;gap:9px}
-.bdg{font-size:.68rem;padding:4px 10px;border-radius:20px;font-weight:600;background:rgba(56,189,248,.1);color:var(--a);border:1px solid rgba(56,189,248,.22)}
-.darr{color:var(--tm);transition:all .2s}
-.dlb:hover .darr{transform:translateX(-3px)}
+.bdg{font-size:.68rem;padding:4px 10px;border-radius:20px;background:rgba(56,189,248,.1);color:var(--a)}
 
 .shares{display:flex;gap:8px;margin-top:15px;padding-top:15px;border-top:1px solid var(--gb)}
-.share-btn{flex:1;padding:8px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.22);color:var(--a);cursor:pointer;font-size:.8rem;transition:all .2s;text-decoration:none}
-.share-btn:hover{background:rgba(56,189,248,.2);box-shadow:0 0 12px rgba(56,189,248,.15)}
+.share-btn{flex:1;padding:8px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.22);color:var(--a);cursor:pointer;font-size:.8rem;transition:all .2s}
+.share-btn:hover{background:rgba(56,189,248,.2)}
 
 footer{margin-top:auto;padding-top:40px;text-align:center}
 .fb{font-size:.85rem;font-weight:600;color:#334155}.fb span{color:var(--a)}
-.fs{color:#1e293b;font-size:.72rem;margin-top:3px}
 
 @keyframes fdown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fup{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:500px){.card,.rcard,.pcard{padding:17px}.row{grid-template-columns:1fr}.mhead{flex-direction:column;text-align:center}.mthumb{width:80px;height:80px}}
+@media(max-width:500px){.card,.rcard{padding:17px}.row{grid-template-columns:1fr}.mhead{flex-direction:column;text-align:center}}
 </style>
 </head>
 <body>
@@ -114,11 +127,16 @@ footer{margin-top:auto;padding-top:40px;text-align:center}
 <header>
   <div class="pill"><span style="font-size:1.1rem">🎵</span><div class="pdot"></div><span class="pname">MP3 Downloader Pro</span></div>
   <h1>دانلود آهنگ</h1>
-  <p class="sub">یوتیوب • اسپوتیفای • SoundCloud و هزاران سایت دیگر</p>
+  <p class="sub">یوتیوب • SoundCloud • اسپوتیفای و ۱۰۰۰+ سایت</p>
 </header>
 
 <div class="card">
-  <input class="ui" id="url" placeholder="لینک آهنگ را اینجا paste کنید...">
+  <div class="info">
+    ✅ <strong>YouTube فعال است!</strong> فقط لینک رو paste کنید و دانلود کنید.
+  </div>
+
+  <input class="ui" id="url" placeholder="لینک آهنگ (یوتیوب, SoundCloud, Instagram, ...)">
+  
   <div class="row">
     <div>
       <div class="lbl">کیفیت صوتی</div>
@@ -133,10 +151,10 @@ footer{margin-top:auto;padding-top:40px;text-align:center}
       <select class="sel" id="format">
         <option value="mp3" selected>MP3</option>
         <option value="m4a">M4A</option>
-        <option value="wav">WAV</option>
       </select>
     </div>
   </div>
+
   <button class="bmain" onclick="download()" id="btn">🎵 دانلود MP3</button>
 </div>
 
@@ -153,14 +171,14 @@ footer{margin-top:auto;padding-top:40px;text-align:center}
   <audio id="player" controls style="width:100%;margin-bottom:15px;border-radius:8px"></audio>
   <div id="dllinks"></div>
   <div class="shares">
-    <button class="share-btn" onclick="shareWhatsApp()">📱 اشتراک WhatsApp</button>
+    <button class="share-btn" onclick="shareWhatsApp()">📱 واتس‌اپ</button>
     <button class="share-btn" onclick="copyLink()">🔗 کپی لینک</button>
   </div>
 </div>
 
 <footer>
   <div class="fb">MP3 <span>Downloader</span> Pro</div>
-  <div class="fs">✨ حرفه‌ای | دانلود سریع | صوت بهترین کیفیت</div>
+  <div class="fs">✨ YouTube Cookies Support | SoundCloud Friendly</div>
 </footer>
 </div>
 
@@ -186,6 +204,7 @@ function download(){
   const url = document.getElementById('url').value.trim();
   const quality = document.getElementById('quality').value;
   const format = document.getElementById('format').value;
+  const cookieFile = document.getElementById('cookieFile').files[0];
   
   if(!url){
     showErr('لطفا یک لینک وارد کنید');
@@ -197,10 +216,15 @@ function download(){
   document.getElementById('rcard').style.display='none';
   showProgress(5, 'در حال شروع...');
   
+  const formData = new FormData();
+  formData.append('url', url);
+  formData.append('quality', quality);
+  formData.append('format', format);
+  if(cookieFile) formData.append('cookies', cookieFile);
+  
   fetch('/api/download', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({url, quality, format})
+    body: formData
   })
   .then(r => r.json())
   .then(data => {
@@ -222,46 +246,32 @@ function poll(){
   .then(r => r.json())
   .then(d => {
     showProgress(d.pct, d.status, d.speed);
-    
-    if(d.done){
-      showResult(d);
-    } else if(d.error){
-      showErr(d.error);
-    } else {
-      pollTimer = setTimeout(poll, 500);
-    }
+    if(d.done) showResult(d);
+    else if(d.error) showErr(d.error);
+    else pollTimer = setTimeout(poll, 500);
   })
-  .catch(e => {
-    pollTimer = setTimeout(poll, 1000);
-  });
+  .catch(e => pollTimer = setTimeout(poll, 1000));
 }
 
 function showResult(d){
   document.getElementById('pcard').style.display='none';
-  const rcard = document.getElementById('rcard');
-  rcard.style.display='block';
+  document.getElementById('rcard').style.display='block';
   
-  let mhead = `<img src="${d.thumb}" class="mthumb" onerror="this.style.display='none'"><div class="minfo"><div class="mtitle">${d.title}</div><div class="martist">${d.artist||d.platform}</div><div class="mduration">${d.duration||''}</div></div>`;
+  let mhead = `<img src="${d.thumb}" class="mthumb" onerror="this.style.display='none'"><div class="minfo"><div class="mtitle">${d.title}</div><div class="martist">${d.artist||d.platform}</div></div>`;
   document.getElementById('mhead').innerHTML = mhead;
   
   let dlhtml = '';
   d.files.forEach(f => {
-    dlhtml += `<a href="/api/file/${f.id}" class="dlb"><div class="dll"><span class="bdg">${f.format.toUpperCase()}</span><span>${f.label}</span></div><span class="darr">⬇️</span></a>`;
+    dlhtml += `<a href="/api/file/${f.id}" class="dlb"><div class="dll"><span class="bdg">${f.format.toUpperCase()}</span><span>${f.label}</span></div>⬇️</a>`;
   });
   
   document.getElementById('dllinks').innerHTML = dlhtml;
-  
-  if(d.files[0]){
-    document.getElementById('player').src = `/api/file/${d.files[0].id}`;
-  }
-  
-  window.currentFile = d.files[0] || {};
+  if(d.files[0]) document.getElementById('player').src = `/api/file/${d.files[0].id}`;
 }
 
 function shareWhatsApp(){
-  const url = window.location.href;
-  const text = `🎵 دانلود کنید: ${document.querySelector('.mtitle')?.textContent || 'آهنگ'}`;
-  window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`);
+  const title = document.querySelector('.mtitle')?.textContent || 'آهنگ';
+  window.open(`https://wa.me/?text=${encodeURIComponent('🎵 ' + title + ' ' + window.location.href)}`);
 }
 
 function copyLink(){
@@ -278,10 +288,10 @@ def home():
 
 @app.route('/api/download', methods=['POST'])
 def start_download():
-    data = request.get_json()
-    url = data.get('url', '').strip()
-    quality = data.get('quality', '192')
-    format = data.get('format', 'mp3')
+    url = request.form.get('url', '').strip()
+    quality = request.form.get('quality', '192')
+    format = request.form.get('format', 'mp3')
+    cookies_upload = request.files.get('cookies')
 
     if not url:
         return jsonify({'error': 'لینک وارد نشده'})
@@ -290,16 +300,21 @@ def start_download():
     downloads[dl_id] = {
         'pct': 5, 'status': 'شروع...', 'done': False,
         'error': None, 'files': [], 'title': '', 'artist': '',
-        'thumb': '', 'platform': '', 'duration': '', 'speed': ''
+        'thumb': '', 'platform': '', 'speed': ''
     }
 
-    thread = threading.Thread(target=do_download, args=(dl_id, url, quality, format))
+    cookies_path = None
+    if cookies_upload:
+        cookies_path = os.path.join(tempfile.gettempdir(), f'cookies_{dl_id}.txt')
+        cookies_upload.save(cookies_path)
+
+    thread = threading.Thread(target=do_download, args=(dl_id, url, quality, format, cookies_path))
     thread.daemon = True
     thread.start()
 
     return jsonify({'id': dl_id})
 
-def do_download(dl_id, url, quality, format):
+def do_download(dl_id, url, quality, format, cookies_path):
     d = downloads[dl_id]
     tmp_dir = tempfile.mkdtemp(prefix='mp3_')
     
@@ -307,7 +322,6 @@ def do_download(dl_id, url, quality, format):
         d['pct'] = 10
         d['status'] = 'در حال دریافت اطلاعات...'
 
-        audio_format = 'bestaudio/best'
         out_path = os.path.join(tmp_dir, '%(title)s.%(ext)s')
 
         def progress_hook(info):
@@ -323,10 +337,10 @@ def do_download(dl_id, url, quality, format):
                 d['status'] = 'در حال دانلود...'
             elif info['status'] == 'finished':
                 d['pct'] = 85
-                d['status'] = 'در حال تبدیل به MP3...'
+                d['status'] = 'در حال تبدیل...'
 
         ydl_opts = {
-            'format': audio_format,
+            'format': 'bestaudio/best',
             'outtmpl': out_path,
             'progress_hooks': [progress_hook],
             'quiet': True,
@@ -338,6 +352,11 @@ def do_download(dl_id, url, quality, format):
             }],
         }
 
+        if cookies_path:
+            ydl_opts['cookiefile'] = cookies_path
+        elif SERVER_COOKIES:
+            ydl_opts['cookiefile'] = SERVER_COOKIES
+
         d['pct'] = 15
         d['status'] = 'در حال اتصال...'
 
@@ -347,9 +366,6 @@ def do_download(dl_id, url, quality, format):
             d['artist'] = info.get('uploader', info.get('channel', ''))
             d['thumb'] = info.get('thumbnail', '')
             d['platform'] = info.get('extractor_key', '')
-            duration = info.get('duration', 0)
-            if duration:
-                d['duration'] = f"{int(duration//60)}:{int(duration%60):02d}"
 
         d['pct'] = 90
         d['status'] = 'آماده‌سازی فایل...'
@@ -369,20 +385,6 @@ def do_download(dl_id, url, quality, format):
                 })
                 downloads[fid] = {'path': fpath}
 
-        if db:
-            try:
-                db['downloads'].insert_one({
-                    'download_id': dl_id,
-                    'url': url,
-                    'title': d['title'],
-                    'artist': d['artist'],
-                    'quality': quality,
-                    'format': format,
-                    'timestamp': datetime.utcnow(),
-                })
-            except:
-                pass
-
         d['files'] = files
         d['pct'] = 100
         d['done'] = True
@@ -390,7 +392,9 @@ def do_download(dl_id, url, quality, format):
 
     except Exception as e:
         err = str(e)
-        if 'HTTP Error 403' in err:
+        if 'Sign in' in err or 'bot' in err.lower():
+            d['error'] = '❌ YouTube نیاز دارد cookies! فایل cookies رو آپلود کن یا از SoundCloud استفاده کن'
+        elif 'HTTP Error 403' in err:
             d['error'] = 'دسترسی رد شد - احتمالا لاگین نیاز است'
         elif 'not found' in err.lower():
             d['error'] = 'آهنگ پیدا نشد'
