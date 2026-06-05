@@ -1,23 +1,24 @@
 from flask import Flask, render_template_string, request, jsonify, send_file
 import yt_dlp
-import os, uuid, threading, tempfile, json
+import os, uuid, threading, tempfile, json, subprocess
 from urllib.parse import quote
 from datetime import datetime
 from dotenv import load_dotenv
 from pymongo import MongoClient
-import io
 
 load_dotenv()
 
 app = Flask(__name__)
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://sam:password@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority')
+MONGO_URI = os.getenv('MONGO_URI', '')
 
 try:
-    mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-    mongo_client.admin.command('ping')
-    db = mongo_client['samhouston']
-except Exception as e:
-    print(f"MongoDB Connection Error: {e}")
+    if MONGO_URI:
+        mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        mongo_client.admin.command('ping')
+        db = mongo_client['samhouston']
+    else:
+        db = None
+except:
     db = None
 
 downloads = {}
@@ -27,12 +28,12 @@ HTML = r'''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sam Houston Downloader | دانلود ویدیو آنلاین</title>
+<title>MP3 Downloader Pro | دانلود آهنگ</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --g: rgba(255,255,255,0.06); --gb: rgba(255,255,255,0.12);
-  --gh: rgba(255,255,255,0.1); --a: #38bdf8; --a2: #818cf8; --a3: #f472b6;
+  --a: #38bdf8; --a2: #818cf8; --a3: #f472b6;
   --t: #f1f5f9; --tm: #94a3b8; --bg: #020617; --err: #f87171; --ok: #34d399;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -79,23 +80,23 @@ h1{font-size:clamp(1.9rem,5vw,3.2rem);font-weight:700;line-height:1.1;margin-bot
 .ecard{display:none;width:100%;max-width:700px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.22);backdrop-filter:blur(18px);border-radius:14px;padding:14px 18px;margin-bottom:16px;color:var(--err);font-size:.88rem;text-align:center}
 
 .rcard{display:none;width:100%;max-width:700px;background:var(--g);border:1px solid var(--gb);backdrop-filter:blur(18px);border-radius:22px;padding:24px;margin-bottom:16px;animation:fup .4s ease both}
-.vhead{display:flex;gap:13px;align-items:center;margin-bottom:20px}
-.vthumb{width:110px;height:62px;object-fit:cover;border-radius:9px;flex-shrink:0;border:1px solid var(--gb)}
-.vtitle{font-size:.92rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px}
-.vplat{font-size:.75rem;color:var(--tm)}
-.slbl{font-size:.72rem;color:#334155;margin:10px 0 7px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
+.mhead{display:flex;gap:13px;align-items:center;margin-bottom:20px}
+.mthumb{width:110px;height:110px;object-fit:cover;border-radius:12px;flex-shrink:0;border:1px solid var(--gb);background:rgba(99,102,241,.1)}
+.minfo{flex:1}
+.mtitle{font-size:1rem;font-weight:600;margin-bottom:5px;color:var(--t)}
+.martist{font-size:.85rem;color:var(--tm);margin-bottom:8px}
+.mduration{font-size:.75rem;color:#475569}
 
 .dlb{display:flex;align-items:center;justify-content:space-between;width:100%;position:relative;overflow:hidden;background:rgba(255,255,255,.04);border:1px solid var(--gb);border-radius:11px;padding:12px 15px;color:var(--t);text-decoration:none;font-family:'Vazirmatn',sans-serif;font-size:.86rem;cursor:pointer;transition:all .25s;margin-bottom:7px}
-.dlb::before{content:'';position:absolute;top:-50%;left:-60%;width:33%;height:200%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.16),transparent);transform:skewX(-20deg);transition:left .5s ease}
-.dlb:hover::before{left:130%}
-.dlb.vb:hover{background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.4);box-shadow:0 0 18px rgba(56,189,248,.1);transform:translateX(-2px)}
-.dlb.ab:hover{background:rgba(129,140,248,.08);border-color:rgba(129,140,248,.4);box-shadow:0 0 18px rgba(129,140,248,.1);transform:translateX(-2px)}
+.dlb:hover{background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.4);box-shadow:0 0 18px rgba(56,189,248,.1);transform:translateX(-2px)}
 .dll{display:flex;align-items:center;gap:9px}
-.bdg{font-size:.68rem;padding:2px 8px;border-radius:20px;font-weight:600}
-.bv{background:rgba(56,189,248,.1);color:var(--a);border:1px solid rgba(56,189,248,.22)}
-.ba{background:rgba(129,140,248,.1);color:var(--a2);border:1px solid rgba(129,140,248,.22)}
+.bdg{font-size:.68rem;padding:4px 10px;border-radius:20px;font-weight:600;background:rgba(56,189,248,.1);color:var(--a);border:1px solid rgba(56,189,248,.22)}
 .darr{color:var(--tm);transition:all .2s}
 .dlb:hover .darr{transform:translateX(-3px)}
+
+.shares{display:flex;gap:8px;margin-top:15px;padding-top:15px;border-top:1px solid var(--gb)}
+.share-btn{flex:1;padding:8px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.22);color:var(--a);cursor:pointer;font-size:.8rem;transition:all .2s;text-decoration:none}
+.share-btn:hover{background:rgba(56,189,248,.2);box-shadow:0 0 12px rgba(56,189,248,.15)}
 
 footer{margin-top:auto;padding-top:40px;text-align:center}
 .fb{font-size:.85rem;font-weight:600;color:#334155}.fb span{color:var(--a)}
@@ -103,7 +104,7 @@ footer{margin-top:auto;padding-top:40px;text-align:center}
 
 @keyframes fdown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fup{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:500px){.card,.rcard,.pcard{padding:17px}.row{grid-template-columns:1fr}}
+@media(max-width:500px){.card,.rcard,.pcard{padding:17px}.row{grid-template-columns:1fr}.mhead{flex-direction:column;text-align:center}.mthumb{width:80px;height:80px}}
 </style>
 </head>
 <body>
@@ -111,27 +112,32 @@ footer{margin-top:auto;padding-top:40px;text-align:center}
 <div class="page">
 
 <header>
-  <div class="pill"><span style="font-size:1.1rem">⬇️</span><div class="pdot"></div><span class="pname">Sam Houston Downloader</span></div>
-  <h1>دانلود سریع ویدیو</h1>
-  <p class="sub">اینستاگرام • توییتر • تیک‌تاک • یوتیوب و ۱۰۰۰+ سایت دیگر</p>
+  <div class="pill"><span style="font-size:1.1rem">🎵</span><div class="pdot"></div><span class="pname">MP3 Downloader Pro</span></div>
+  <h1>دانلود آهنگ</h1>
+  <p class="sub">یوتیوب • اسپوتیفای • SoundCloud و هزاران سایت دیگر</p>
 </header>
 
 <div class="card">
-  <input class="ui" id="url" placeholder="لینک ویدیو را اینجا paste کنید...">
+  <input class="ui" id="url" placeholder="لینک آهنگ را اینجا paste کنید...">
   <div class="row">
     <div>
-      <div class="lbl">کیفیت ویدیو</div>
+      <div class="lbl">کیفیت صوتی</div>
       <select class="sel" id="quality">
-        <option value="best">بهترین کیفیت</option>
-        <option value="2160">4K</option>
-        <option value="1080" selected>1080p</option>
-        <option value="720">720p</option>
-        <option value="480">480p</option>
-        <option value="360">360p</option>
+        <option value="320">320kbps (بهترین)</option>
+        <option value="192" selected>192kbps (معمولی)</option>
+        <option value="128">128kbps (سبک)</option>
+      </select>
+    </div>
+    <div>
+      <div class="lbl">فرمت</div>
+      <select class="sel" id="format">
+        <option value="mp3" selected>MP3</option>
+        <option value="m4a">M4A</option>
+        <option value="wav">WAV</option>
       </select>
     </div>
   </div>
-  <button class="bmain" onclick="go()" id="btn">⬇️ دانلود</button>
+  <button class="bmain" onclick="download()" id="btn">🎵 دانلود MP3</button>
 </div>
 
 <div class="pcard" id="pcard">
@@ -143,14 +149,18 @@ footer{margin-top:auto;padding-top:40px;text-align:center}
 <div class="ecard" id="ecard"></div>
 
 <div class="rcard" id="rcard">
-  <div class="vhead" id="vhead"></div>
-  <div id="vlinks"></div>
-  <div id="alinks"></div>
+  <div class="mhead" id="mhead"></div>
+  <audio id="player" controls style="width:100%;margin-bottom:15px;border-radius:8px"></audio>
+  <div id="dllinks"></div>
+  <div class="shares">
+    <button class="share-btn" onclick="shareWhatsApp()">📱 اشتراک WhatsApp</button>
+    <button class="share-btn" onclick="copyLink()">🔗 کپی لینک</button>
+  </div>
 </div>
 
 <footer>
-  <div class="fb">Sam <span>Houston</span> Downloader</div>
-  <div class="fs">✨ Cloud Version | تمام سایت‌ها پشتیبانی می‌شوند</div>
+  <div class="fb">MP3 <span>Downloader</span> Pro</div>
+  <div class="fs">✨ حرفه‌ای | دانلود سریع | صوت بهترین کیفیت</div>
 </footer>
 </div>
 
@@ -172,9 +182,10 @@ function showProgress(pct, txt, speed){
   if(speed) document.getElementById('pspeed').textContent=speed;
 }
 
-function go(){
+function download(){
   const url = document.getElementById('url').value.trim();
   const quality = document.getElementById('quality').value;
+  const format = document.getElementById('format').value;
   
   if(!url){
     showErr('لطفا یک لینک وارد کنید');
@@ -189,7 +200,7 @@ function go(){
   fetch('/api/download', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({url, quality})
+    body: JSON.stringify({url, quality, format})
   })
   .then(r => r.json())
   .then(data => {
@@ -230,22 +241,32 @@ function showResult(d){
   const rcard = document.getElementById('rcard');
   rcard.style.display='block';
   
-  let vhead = `<img src="${d.thumb}" class="vthumb"><div><div class="vtitle">${d.title}</div><div class="vplat">${d.platform}</div></div>`;
-  document.getElementById('vhead').innerHTML = vhead;
+  let mhead = `<img src="${d.thumb}" class="mthumb" onerror="this.style.display='none'"><div class="minfo"><div class="mtitle">${d.title}</div><div class="martist">${d.artist||d.platform}</div><div class="mduration">${d.duration||''}</div></div>`;
+  document.getElementById('mhead').innerHTML = mhead;
   
-  let vlinks = '<div class="slbl">📹 ویدیو</div>';
-  let alinks = '<div class="slbl">🎵 صدا</div>';
-  
+  let dlhtml = '';
   d.files.forEach(f => {
-    if(f.type === 'video'){
-      vlinks += `<a href="/api/file/${f.id}" class="dlb vb"><div class="dll"><span class="bdg bv">${f.ext}</span><span>${f.label}</span></div><span class="darr">↙️</span></a>`;
-    } else {
-      alinks += `<a href="/api/file/${f.id}" class="dlb ab"><div class="dll"><span class="bdg ba">${f.ext}</span><span>${f.label}</span></div><span class="darr">↙️</span></a>`;
-    }
+    dlhtml += `<a href="/api/file/${f.id}" class="dlb"><div class="dll"><span class="bdg">${f.format.toUpperCase()}</span><span>${f.label}</span></div><span class="darr">⬇️</span></a>`;
   });
   
-  document.getElementById('vlinks').innerHTML = vlinks;
-  document.getElementById('alinks').innerHTML = alinks || '';
+  document.getElementById('dllinks').innerHTML = dlhtml;
+  
+  if(d.files[0]){
+    document.getElementById('player').src = `/api/file/${d.files[0].id}`;
+  }
+  
+  window.currentFile = d.files[0] || {};
+}
+
+function shareWhatsApp(){
+  const url = window.location.href;
+  const text = `🎵 دانلود کنید: ${document.querySelector('.mtitle')?.textContent || 'آهنگ'}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`);
+}
+
+function copyLink(){
+  navigator.clipboard.writeText(window.location.href);
+  alert('✅ لینک کپی شد!');
 }
 </script>
 </body>
@@ -259,7 +280,8 @@ def home():
 def start_download():
     data = request.get_json()
     url = data.get('url', '').strip()
-    quality = data.get('quality', '1080')
+    quality = data.get('quality', '192')
+    format = data.get('format', 'mp3')
 
     if not url:
         return jsonify({'error': 'لینک وارد نشده'})
@@ -267,31 +289,25 @@ def start_download():
     dl_id = str(uuid.uuid4())[:8]
     downloads[dl_id] = {
         'pct': 5, 'status': 'شروع...', 'done': False,
-        'error': None, 'files': [], 'title': '', 'thumb': '',
-        'platform': '', 'speed': ''
+        'error': None, 'files': [], 'title': '', 'artist': '',
+        'thumb': '', 'platform': '', 'duration': '', 'speed': ''
     }
 
-    thread = threading.Thread(target=do_download, args=(dl_id, url, quality))
+    thread = threading.Thread(target=do_download, args=(dl_id, url, quality, format))
     thread.daemon = True
     thread.start()
 
     return jsonify({'id': dl_id})
 
-def do_download(dl_id, url, quality):
+def do_download(dl_id, url, quality, format):
     d = downloads[dl_id]
-    tmp_dir = tempfile.mkdtemp(prefix='samhouston_')
+    tmp_dir = tempfile.mkdtemp(prefix='mp3_')
     
     try:
         d['pct'] = 10
         d['status'] = 'در حال دریافت اطلاعات...'
 
-        if quality == 'best':
-            fmt = 'bestvideo+bestaudio/best'
-        elif quality in ('2160','1080','720','480','360'):
-            fmt = f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best'
-        else:
-            fmt = 'bestvideo+bestaudio/best'
-
+        audio_format = 'bestaudio/best'
         out_path = os.path.join(tmp_dir, '%(title)s.%(ext)s')
 
         def progress_hook(info):
@@ -299,24 +315,27 @@ def do_download(dl_id, url, quality):
                 total = info.get('total_bytes') or info.get('total_bytes_estimate', 0)
                 downloaded = info.get('downloaded_bytes', 0)
                 if total:
-                    pct = int(downloaded / total * 80) + 15
-                    d['pct'] = min(pct, 94)
+                    pct = int(downloaded / total * 70) + 15
+                    d['pct'] = min(pct, 85)
                 speed = info.get('_speed_str', '')
                 eta = info.get('_eta_str', '')
                 d['speed'] = f"{speed} — {eta}" if speed else ''
                 d['status'] = 'در حال دانلود...'
             elif info['status'] == 'finished':
-                d['pct'] = 95
-                d['status'] = 'در حال پردازش...'
+                d['pct'] = 85
+                d['status'] = 'در حال تبدیل به MP3...'
 
         ydl_opts = {
-            'format': fmt,
+            'format': audio_format,
             'outtmpl': out_path,
-            'merge_output_format': 'mp4',
-            'nocheckcertificate': True,
             'progress_hooks': [progress_hook],
             'quiet': True,
             'no_warnings': False,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': format,
+                'preferredquality': quality,
+            }],
         }
 
         d['pct'] = 15
@@ -324,42 +343,42 @@ def do_download(dl_id, url, quality):
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            d['title'] = info.get('title', 'ویدیو')
+            d['title'] = info.get('title', 'آهنگ')
+            d['artist'] = info.get('uploader', info.get('channel', ''))
             d['thumb'] = info.get('thumbnail', '')
             d['platform'] = info.get('extractor_key', '')
+            duration = info.get('duration', 0)
+            if duration:
+                d['duration'] = f"{int(duration//60)}:{int(duration%60):02d}"
+
+        d['pct'] = 90
+        d['status'] = 'آماده‌سازی فایل...'
 
         files = []
         for fname in os.listdir(tmp_dir):
-            fpath = os.path.join(tmp_dir, fname)
-            ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-            fid = str(uuid.uuid4())[:8]
-            is_audio = ext in ('mp3', 'm4a', 'aac', 'opus', 'ogg', 'wav')
-            size = os.path.getsize(fpath)
-            size_str = f"{size/1024/1024:.1f}MB" if size > 1024*1024 else f"{size/1024:.0f}KB"
-            files.append({
-                'id': fid,
-                'path': fpath,
-                'label': f"{'صدا' if is_audio else 'ویدیو'} — {size_str}",
-                'ext': ext.upper(),
-                'type': 'audio' if is_audio else 'video'
-            })
+            if fname.endswith(f'.{format}'):
+                fpath = os.path.join(tmp_dir, fname)
+                fid = str(uuid.uuid4())[:8]
+                size = os.path.getsize(fpath)
+                size_str = f"{size/1024/1024:.1f}MB" if size > 1024*1024 else f"{size/1024:.0f}KB"
+                files.append({
+                    'id': fid,
+                    'path': fpath,
+                    'label': f"{quality}kbps — {size_str}",
+                    'format': format,
+                })
+                downloads[fid] = {'path': fpath}
 
-        for f in files:
-            fid = f['id']
-            downloads[fid] = f
-
-        # MongoDB میں history ذخیره کریں
         if db:
             try:
                 db['downloads'].insert_one({
                     'download_id': dl_id,
                     'url': url,
                     'title': d['title'],
-                    'platform': d['platform'],
+                    'artist': d['artist'],
                     'quality': quality,
+                    'format': format,
                     'timestamp': datetime.utcnow(),
-                    'status': 'completed',
-                    'files_count': len(files)
                 })
             except:
                 pass
@@ -372,9 +391,9 @@ def do_download(dl_id, url, quality):
     except Exception as e:
         err = str(e)
         if 'HTTP Error 403' in err:
-            d['error'] = 'دسترسی رد شد (403) — احتمالا لاگین نیاز است'
+            d['error'] = 'دسترسی رد شد - احتمالا لاگین نیاز است'
         elif 'not found' in err.lower():
-            d['error'] = 'ویدیو پیدا نشد'
+            d['error'] = 'آهنگ پیدا نشد'
         else:
             d['error'] = err[:200]
 
